@@ -1,4 +1,5 @@
 import type { Score, CountryScores } from "@/constants/scores";
+import { resolveDetailCountryCode } from "@/constants/detail-countries";
 import {
   REGION_STORAGE_KEY,
   STORAGE_KEY,
@@ -11,6 +12,32 @@ export interface ScoreData {
   regionScores: RegionScores;
 }
 
+function migrateCountryScores(scores: CountryScores): CountryScores {
+  const migrated: CountryScores = {};
+
+  for (const [key, score] of Object.entries(scores)) {
+    const canonical = resolveDetailCountryCode(key) ?? key;
+    const existing = migrated[canonical] ?? 0;
+    migrated[canonical] = Math.max(existing, score) as Score;
+  }
+
+  return migrated;
+}
+
+function migrateRegionScores(scores: RegionScores): RegionScores {
+  const migrated: RegionScores = {};
+
+  for (const [key, regions] of Object.entries(scores)) {
+    const canonical = resolveDetailCountryCode(key) ?? key;
+    migrated[canonical] = {
+      ...(migrated[canonical] ?? {}),
+      ...regions,
+    };
+  }
+
+  return migrated;
+}
+
 export function loadScoreData(): ScoreData {
   if (typeof window === "undefined") {
     return { countryScores: {}, regionScores: {} };
@@ -21,16 +48,25 @@ export function loadScoreData(): ScoreData {
     const regionRaw = window.localStorage.getItem(REGION_STORAGE_KEY);
 
     return {
-      countryScores: countryRaw
-        ? (JSON.parse(countryRaw) as CountryScores)
-        : {},
-      regionScores: regionRaw
-        ? (JSON.parse(regionRaw) as RegionScores)
-        : {},
+      countryScores: migrateCountryScores(
+        countryRaw ? (JSON.parse(countryRaw) as CountryScores) : {},
+      ),
+      regionScores: migrateRegionScores(
+        regionRaw ? (JSON.parse(regionRaw) as RegionScores) : {},
+      ),
     };
   } catch {
     return { countryScores: {}, regionScores: {} };
   }
+}
+
+export function clearScoreData(): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.localStorage.removeItem(STORAGE_KEY);
+  window.localStorage.removeItem(REGION_STORAGE_KEY);
 }
 
 export function saveScoreData(data: ScoreData): void {

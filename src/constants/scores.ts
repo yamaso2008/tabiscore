@@ -10,7 +10,7 @@ export interface ScoreOption {
 }
 
 export const SCORE_OPTIONS: ScoreOption[] = [
-  { value: 0, label: "未踏", color: "#e5e7eb", hoverColor: "#d1d5db" },
+  { value: 0, label: "未踏", color: "#f1f5f9", hoverColor: "#e2e8f0" },
   { value: 1, label: "通過", color: "#7dd3fc", hoverColor: "#38bdf8" },
   { value: 2, label: "接地", color: "#3b82f6", hoverColor: "#2563eb" },
   { value: 3, label: "訪問", color: "#22c55e", hoverColor: "#16a34a" },
@@ -19,7 +19,7 @@ export const SCORE_OPTIONS: ScoreOption[] = [
 ];
 
 export const SCORE_COLORS: Record<Score, string> = {
-  0: "#e5e7eb",
+  0: "#f1f5f9",
   1: "#7dd3fc",
   2: "#3b82f6",
   3: "#22c55e",

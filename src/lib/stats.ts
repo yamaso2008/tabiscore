@@ -14,11 +14,20 @@ export interface SelectedArea {
   id: string;
   name: string;
   position: PopupPosition;
+  kind: "country" | "region";
+  countryCode?: string;
+  countryName?: string;
+  nameJa?: string;
+  nameEn?: string;
+  countryNameJa?: string;
+  countryNameEn?: string;
+  regionLabel?: string;
 }
 
 export interface MapStats {
   totalScore: number;
   visitedCount: number;
+  visitedRegionCount: number;
 }
 
 export function calculateStats(
@@ -32,6 +41,7 @@ export function calculateStats(
 
   let totalScore = 0;
   let visitedCount = 0;
+  let visitedRegionCount = 0;
 
   for (const countryId of countryIds) {
     totalScore += getCountryContribution(
@@ -45,9 +55,13 @@ export function calculateStats(
     ) {
       visitedCount += 1;
     }
+
+    visitedRegionCount += Object.values(regionScores[countryId] ?? {}).filter(
+      (score) => score > 0,
+    ).length;
   }
 
-  return { totalScore, visitedCount };
+  return { totalScore, visitedCount, visitedRegionCount };
 }
 
 export function getCountryStats(

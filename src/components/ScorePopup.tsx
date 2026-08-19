@@ -1,7 +1,9 @@
 "use client";
 
-import { SCORE_OPTIONS } from "@/constants/scores";
-import type { Score } from "@/constants/scores";
+import { useEffect } from "react";
+import { SCORE_OPTIONS, type Score } from "@/constants/scores";
+import { useLocale } from "@/i18n/LocaleContext";
+import { getRegionTypeLabel, getScoreText } from "@/i18n/messages";
 import type { SelectedArea } from "@/lib/stats";
 
 interface ScorePopupProps {
@@ -9,8 +11,6 @@ interface ScorePopupProps {
   currentScore: Score;
   onSelect: (score: Score) => void;
   onClose: () => void;
-  showDetailButton?: boolean;
-  onOpenDetail?: () => void;
 }
 
 export function ScorePopup({
@@ -18,27 +18,58 @@ export function ScorePopup({
   currentScore,
   onSelect,
   onClose,
-  showDetailButton = false,
-  onOpenDetail,
 }: ScorePopupProps) {
+  const { locale, t } = useLocale();
+  const displayName =
+    locale === "en"
+      ? (area.nameEn ?? area.name)
+      : (area.nameJa ?? area.name);
+  const countryName =
+    locale === "en"
+      ? (area.countryNameEn ?? area.countryName)
+      : (area.countryNameJa ?? area.countryName);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        onClose();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
   return (
     <>
       <button
         type="button"
-        aria-label="閉じる"
-        className="fixed inset-0 z-40 bg-black/20"
+        aria-label={t.close}
+        className="fixed inset-0 z-[60] bg-black/20"
         onClick={onClose}
       />
       <div
-        className="fixed z-50 w-64 -translate-x-1/2 -translate-y-full rounded-xl border border-slate-200 bg-white p-3 shadow-xl"
+        role="dialog"
+        aria-label={`${displayName}${countryName ? ` / ${countryName}` : ""} ${t.selectScore}`}
+        className="fixed z-[70] w-64 -translate-x-1/2 -translate-y-full rounded-xl border border-slate-200 bg-white p-3 shadow-xl"
         style={{
           left: area.position.x,
           top: area.position.y - 12,
         }}
       >
         <div className="mb-3 border-b border-slate-100 pb-2">
-          <p className="text-sm font-semibold text-slate-900">{area.name}</p>
-          <p className="text-xs text-slate-500">スコアを選択</p>
+          <p className="text-sm font-semibold text-slate-900">
+            {area.kind === "region" && countryName
+              ? `${displayName} / ${countryName}`
+              : displayName}
+          </p>
+          <p className="text-xs text-slate-500">
+            {area.kind === "region"
+              ? (area.regionLabel ||
+                  getRegionTypeLabel(t, area.countryCode) ||
+                  t.selectScore)
+              : t.selectScore}
+          </p>
         </div>
         <div className="grid grid-cols-3 gap-2">
           {SCORE_OPTIONS.map((option) => {
@@ -59,20 +90,13 @@ export function ScorePopup({
                 <span className="block text-[10px] text-slate-600">
                   {option.value}
                 </span>
-                <span className="block text-slate-900">{option.label}</span>
+                <span className="block text-slate-900">
+                  {getScoreText(t, option.value)}
+                </span>
               </button>
             );
           })}
         </div>
-        {showDetailButton && onOpenDetail && (
-          <button
-            type="button"
-            onClick={onOpenDetail}
-            className="mt-3 w-full rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 transition hover:bg-blue-100"
-          >
-            州/県ごとの詳細を入力
-          </button>
-        )}
       </div>
     </>
   );
