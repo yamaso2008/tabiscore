@@ -32,6 +32,9 @@ export const metadata: Metadata = {
     title: SITE_TITLE_JA,
     description: SITE_DESCRIPTION_JA,
   },
+  verification: {
+    google: "6WGskn5ZKWmr7XlFAMp-lil9acygKMHtDfnFFY4poMI",
+  },
   other: {
     "og:title:ja": SITE_TITLE_JA,
     "og:title:en": SITE_TITLE_EN,
