@@ -113,12 +113,9 @@ export async function downloadMapPng(
     );
   });
 
-  clone.querySelectorAll("[data-city-marker]").forEach((node) => {
-    const x = node.getAttribute("data-x");
-    const y = node.getAttribute("data-y");
-    if (x && y) {
-      node.setAttribute("transform", `translate(${x} ${y}) scale(1)`);
-    }
+  // 画面上のズームに応じた逆スケールを解除し、等倍の都市ラベルとして書き出す
+  clone.querySelectorAll("[data-overlay-scale]").forEach((node) => {
+    node.setAttribute("transform", "scale(1)");
   });
 
   const serialized = new XMLSerializer().serializeToString(clone);

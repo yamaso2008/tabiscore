@@ -7,16 +7,17 @@ import type { GeoProjection } from "d3-geo";
 
 interface CityMarkersProps {
   projection: GeoProjection;
-  zoom: number;
   locale: Locale;
 }
 
+/**
+ * ピン位置は地図と一緒に拡縮し、内側の g は CSS 変数 --map-label-scale
+ * で逆スケールする。パン中は変数を触らないので合成レイヤーが無効化されない。
+ */
 export const CityMarkers = memo(function CityMarkers({
   projection,
-  zoom,
   locale,
 }: CityMarkersProps) {
-  const inverseScale = 1 / Math.max(zoom, 0.001);
   const points = useMemo(
     () =>
       MAJOR_CITIES.flatMap((city) => {
@@ -46,33 +47,33 @@ export const CityMarkers = memo(function CityMarkers({
           <g
             key={city.id}
             data-city-marker=""
-            data-x={x}
-            data-y={y}
-            transform={`translate(${x} ${y}) scale(${inverseScale})`}
+            transform={`translate(${x} ${y})`}
           >
-            <circle
-              r={2.8}
-              fill="#0f172a"
-              stroke="#ffffff"
-              strokeWidth={1.15}
-            />
-            <text
-              x={city.labelX ?? 6}
-              y={city.labelY ?? 3}
-              textAnchor={anchor}
-              fontSize={10}
-              fontWeight={500}
-              fill="#0f172a"
-              stroke="#ffffff"
-              strokeWidth={2.15}
-              paintOrder="stroke fill"
-              strokeLinejoin="round"
-              style={{
-                fontFamily: "ui-sans-serif, system-ui, sans-serif",
-              }}
-            >
-              {label}
-            </text>
+            <g data-overlay-scale="" transform="scale(1)">
+              <circle
+                r={2.8}
+                fill="#0f172a"
+                stroke="#ffffff"
+                strokeWidth={1.15}
+              />
+              <text
+                x={city.labelX ?? 6}
+                y={city.labelY ?? 3}
+                textAnchor={anchor}
+                fontSize={10}
+                fontWeight={500}
+                fill="#0f172a"
+                stroke="#ffffff"
+                strokeWidth={2.15}
+                paintOrder="stroke fill"
+                strokeLinejoin="round"
+                style={{
+                  fontFamily: "ui-sans-serif, system-ui, sans-serif",
+                }}
+              >
+                {label}
+              </text>
+            </g>
           </g>
         );
       })}

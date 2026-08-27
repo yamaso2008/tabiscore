@@ -3,10 +3,10 @@
 import {
   forwardRef,
   useCallback,
+  useEffect,
   useImperativeHandle,
   useMemo,
   useRef,
-  useState,
 } from "react";
 import { AreaPath } from "@/components/AreaPath";
 import { CityMarkers } from "@/components/CityMarkers";
@@ -20,7 +20,7 @@ import {
   type DetailCountryCode,
 } from "@/constants/detail-countries";
 import type { CountryScores, Score } from "@/constants/scores";
-import { useMapGestures, type MapView } from "@/hooks/useMapGestures";
+import { useMapGestures } from "@/hooks/useMapGestures";
 import { normalizeProperties, type GeographyFeature } from "@/lib/geography";
 import {
   COUNTRY_STROKE,
@@ -56,6 +56,8 @@ interface WorldMapCanvasProps {
   ) => void;
   locale: Locale;
   showMajorCities?: boolean;
+  /** ダブルタップ・2本指タップでのズーム時に選択ポップアップを閉じる */
+  onDismissSelection?: () => void;
 }
 
 interface DrawnArea {
@@ -117,34 +119,40 @@ export const WorldMapCanvas = forwardRef<WorldMapCanvasHandle, WorldMapCanvasPro
       onRegionSelect,
       locale,
       showMajorCities = true,
+      onDismissSelection,
     },
     ref,
   ) {
   const svgRef = useRef<SVGSVGElement | null>(null);
+  const viewportRef = useRef<HTMLDivElement | null>(null);
+  const planeRef = useRef<HTMLDivElement | null>(null);
   const worldLayerRef = useRef<SVGGElement | null>(null);
   const suppressClickRef = useRef(false);
-  const [idleZoom, setIdleZoom] = useState(1);
 
   useImperativeHandle(ref, () => ({
     getSvg: () => svgRef.current,
   }));
 
-  const handleViewIdle = useCallback((view: MapView) => {
-    setIdleZoom((current) =>
-      Math.abs(current - view.zoom) > 0.01 ? view.zoom : current,
-    );
-  }, []);
-
   const handleSuppressClick = useCallback((suppress: boolean) => {
     suppressClickRef.current = suppress;
   }, []);
 
-  const { zoomIn, zoomOut, resetView } = useMapGestures({
-    svgRef,
+  const handleTapZoom = useCallback(() => {
+    onDismissSelection?.();
+  }, [onDismissSelection]);
+
+  const { zoomIn, zoomOut, resetView, refreshOverlayScale } = useMapGestures({
+    viewportRef,
+    planeRef,
     worldLayerRef,
-    onViewIdle: handleViewIdle,
     onSuppressClickChange: handleSuppressClick,
+    onTapZoom: handleTapZoom,
   });
+
+  // 都市ピンが再マウントされたら現在のズームに合わせた逆スケールを再適用する
+  useEffect(() => {
+    refreshOverlayScale();
+  }, [locale, refreshOverlayScale, showMajorCities]);
 
   const projection = useMemo(() => createWorldProjection(), []);
   const pathGenerator = useMemo(
@@ -307,30 +315,21 @@ export const WorldMapCanvas = forwardRef<WorldMapCanvasHandle, WorldMapCanvasPro
   );
 
   return (
-    <div className="relative h-full w-full overflow-hidden">
-      <svg
-        ref={svgRef}
-        width="100%"
-        height="100%"
-        viewBox={`0 0 ${MAP_WIDTH} ${MAP_HEIGHT}`}
-        preserveAspectRatio="xMidYMid meet"
-        role="img"
-        aria-label={locale === "en" ? "World map" : "世界地図"}
-        className="map-viewport block h-full w-full cursor-grab select-none"
-        style={{ backgroundColor: "#dbeafe", touchAction: "none" }}
-      >
-        <g
-          ref={worldLayerRef}
-          data-world-layer=""
-          className="map-world-layer"
-          shapeRendering="optimizeSpeed"
-          style={{
-            transformOrigin: `${MAP_WIDTH / 2}px ${MAP_HEIGHT / 2}px`,
-            transformBox: "view-box",
-            backfaceVisibility: "hidden",
-          }}
-        >
-          {countryAreas.map((area) => (
+    <div className="relative h-full w-full overflow-hidden" style={{ backgroundColor: "#dbeafe" }}>
+      <div ref={viewportRef} className="map-viewport absolute inset-0 cursor-grab">
+        <div ref={planeRef} className="map-plane">
+          <svg
+            ref={svgRef}
+            width="100%"
+            height="100%"
+            viewBox={`0 0 ${MAP_WIDTH} ${MAP_HEIGHT}`}
+            preserveAspectRatio="xMidYMid meet"
+            role="img"
+            aria-label={locale === "en" ? "World map" : "世界地図"}
+            className="block h-full w-full select-none"
+          >
+            <g ref={worldLayerRef} data-world-layer="">
+              {countryAreas.map((area) => (
             <AreaPath
               key={area.key}
               areaId={area.id}
@@ -367,19 +366,19 @@ export const WorldMapCanvas = forwardRef<WorldMapCanvasHandle, WorldMapCanvasPro
               strokeWidth={COUNTRY_STROKE_WIDTH}
               vectorEffect="non-scaling-stroke"
               pointerEvents="none"
-              shapeRendering="optimizeSpeed"
             />
           ))}
 
           {showMajorCities && (
             <CityMarkers
               projection={projection}
-              zoom={idleZoom}
               locale={locale}
             />
           )}
-        </g>
-      </svg>
+            </g>
+          </svg>
+        </div>
+      </div>
 
       <div className="absolute right-4 top-4 z-10 flex flex-col gap-1">
         <button

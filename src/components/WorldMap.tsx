@@ -200,6 +200,10 @@ function WorldMapInner() {
     [selectedArea],
   );
 
+  const handleDismissSelection = useCallback(() => {
+    setSelectedArea(null);
+  }, []);
+
   const handleMapRetry = useCallback(() => {
     setMapRetryKey((key) => key + 1);
     retryWorld();
@@ -268,6 +272,7 @@ function WorldMapInner() {
                 onCountrySelect={handleCountrySelect}
                 onRegionSelect={handleRegionSelect}
                 showMajorCities={showMajorCities}
+                onDismissSelection={handleDismissSelection}
               />
             </MapErrorBoundary>
           )}

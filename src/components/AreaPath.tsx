@@ -54,8 +54,12 @@ export const AreaPath = memo(function AreaPath({
       strokeWidth={isHovered ? strokeWidth + (isRegion ? 0.2 : 0.25) : strokeWidth}
       strokeDasharray={isRegion && !isHovered ? REGION_STROKE_DASH : undefined}
       vectorEffect="non-scaling-stroke"
-      shapeRendering="optimizeSpeed"
-      onPointerEnter={() => setIsHovered(true)}
+      onPointerEnter={(event) => {
+        // タッチでの再レンダーとホバー残りを避けるためマウスのみ反応させる
+        if (event.pointerType === "mouse") {
+          setIsHovered(true);
+        }
+      }}
       onPointerLeave={() => setIsHovered(false)}
       onClick={(event) => {
         event.stopPropagation();

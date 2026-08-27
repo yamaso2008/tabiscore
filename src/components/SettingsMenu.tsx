@@ -2,6 +2,10 @@
 
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
+import {
+  APP_VERSION,
+  formatLastUpdated,
+} from "@/constants/version";
 import { useLocale } from "@/i18n/LocaleContext";
 import { clearScoreData } from "@/lib/scores";
 
@@ -176,6 +180,14 @@ export function SettingsMenu({
             >
               {t.resetScores}
             </button>
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-slate-100 pt-2.5 text-[10px] leading-relaxed text-slate-400">
+              <span className="font-medium tracking-wide">
+                {t.version} {APP_VERSION}
+              </span>
+              <span>
+                {t.lastUpdated} {formatLastUpdated(locale)}
+              </span>
+            </div>
           </div>,
           document.body,
         )}
