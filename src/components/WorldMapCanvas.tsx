@@ -3,7 +3,6 @@
 import {
   forwardRef,
   useCallback,
-  useEffect,
   useImperativeHandle,
   useMemo,
   useRef,
@@ -21,6 +20,7 @@ import {
   type DetailCountryCode,
 } from "@/constants/detail-countries";
 import type { CountryScores, Score } from "@/constants/scores";
+import { useMapGestures, type MapView } from "@/hooks/useMapGestures";
 import { normalizeProperties, type GeographyFeature } from "@/lib/geography";
 import {
   COUNTRY_STROKE,
@@ -106,11 +106,6 @@ function safePathD(
   }
 }
 
-const MIN_ZOOM = 1;
-const MAX_ZOOM = 24;
-/** これ以下の移動量はクリック扱いにする（ドラッグとクリックの誤判定を防ぐ） */
-const DRAG_THRESHOLD_PX = 4;
-
 export const WorldMapCanvas = forwardRef<WorldMapCanvasHandle, WorldMapCanvasProps>(
   function WorldMapCanvas(
     {
@@ -126,25 +121,30 @@ export const WorldMapCanvas = forwardRef<WorldMapCanvasHandle, WorldMapCanvasPro
     ref,
   ) {
   const svgRef = useRef<SVGSVGElement | null>(null);
-  const [zoom, setZoom] = useState(1);
-  const [offset, setOffset] = useState({ x: 0, y: 0 });
-  const [isPanning, setIsPanning] = useState(false);
-
-  const zoomRef = useRef(zoom);
-  const offsetRef = useRef(offset);
+  const worldLayerRef = useRef<SVGGElement | null>(null);
   const suppressClickRef = useRef(false);
+  const [idleZoom, setIdleZoom] = useState(1);
 
   useImperativeHandle(ref, () => ({
     getSvg: () => svgRef.current,
   }));
 
-  useEffect(() => {
-    zoomRef.current = zoom;
-  }, [zoom]);
+  const handleViewIdle = useCallback((view: MapView) => {
+    setIdleZoom((current) =>
+      Math.abs(current - view.zoom) > 0.01 ? view.zoom : current,
+    );
+  }, []);
 
-  useEffect(() => {
-    offsetRef.current = offset;
-  }, [offset]);
+  const handleSuppressClick = useCallback((suppress: boolean) => {
+    suppressClickRef.current = suppress;
+  }, []);
+
+  const { zoomIn, zoomOut, resetView } = useMapGestures({
+    svgRef,
+    worldLayerRef,
+    onViewIdle: handleViewIdle,
+    onSuppressClickChange: handleSuppressClick,
+  });
 
   const projection = useMemo(() => createWorldProjection(), []);
   const pathGenerator = useMemo(
@@ -264,68 +264,6 @@ export const WorldMapCanvas = forwardRef<WorldMapCanvasHandle, WorldMapCanvasPro
     });
   }, [loadedDetailCountries, regionFeatures, pathGenerator]);
 
-  const handleWheel = useCallback((event: React.WheelEvent<SVGSVGElement>) => {
-    event.preventDefault();
-    const factor = event.deltaY < 0 ? 1.2 : 1 / 1.2;
-    setZoom((current) =>
-      Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, current * factor)),
-    );
-  }, []);
-
-  /**
-   * パン操作は window のリスナーで処理する。SVG に setPointerCapture すると
-   * click イベントのターゲットが SVG に付け替えられ、path の onClick が発火しない。
-   */
-  const handlePointerDown = useCallback(
-    (event: React.PointerEvent<SVGSVGElement>) => {
-      if (event.button !== 0) {
-        return;
-      }
-
-      suppressClickRef.current = false;
-
-      const rect = svgRef.current?.getBoundingClientRect();
-      const scaleX = rect ? MAP_WIDTH / rect.width : 1;
-      const scaleY = rect ? MAP_HEIGHT / rect.height : 1;
-      const startX = event.clientX;
-      const startY = event.clientY;
-      const origin = offsetRef.current;
-      const startZoom = zoomRef.current;
-      let hasMoved = false;
-
-      const handleMove = (moveEvent: PointerEvent) => {
-        const rawDx = moveEvent.clientX - startX;
-        const rawDy = moveEvent.clientY - startY;
-
-        if (!hasMoved) {
-          if (Math.hypot(rawDx, rawDy) <= DRAG_THRESHOLD_PX) {
-            return;
-          }
-          hasMoved = true;
-          setIsPanning(true);
-        }
-
-        setOffset({
-          x: origin.x + (rawDx * scaleX) / startZoom,
-          y: origin.y + (rawDy * scaleY) / startZoom,
-        });
-      };
-
-      const handleUp = () => {
-        window.removeEventListener("pointermove", handleMove);
-        window.removeEventListener("pointerup", handleUp);
-        window.removeEventListener("pointercancel", handleUp);
-        suppressClickRef.current = hasMoved;
-        setIsPanning(false);
-      };
-
-      window.addEventListener("pointermove", handleMove);
-      window.addEventListener("pointerup", handleUp);
-      window.addEventListener("pointercancel", handleUp);
-    },
-    [],
-  );
-
   const handleCountryClick = useCallback(
     (event: React.MouseEvent<SVGPathElement>, countryId: string) => {
       if (suppressClickRef.current) {
@@ -368,13 +306,8 @@ export const WorldMapCanvas = forwardRef<WorldMapCanvasHandle, WorldMapCanvasPro
     [regionAreas, onRegionSelect],
   );
 
-  const resetView = useCallback(() => {
-    setZoom(1);
-    setOffset({ x: 0, y: 0 });
-  }, []);
-
   return (
-    <div className="relative h-full w-full">
+    <div className="relative h-full w-full overflow-hidden">
       <svg
         ref={svgRef}
         width="100%"
@@ -383,15 +316,19 @@ export const WorldMapCanvas = forwardRef<WorldMapCanvasHandle, WorldMapCanvasPro
         preserveAspectRatio="xMidYMid meet"
         role="img"
         aria-label={locale === "en" ? "World map" : "世界地図"}
-        className={`block h-full w-full touch-none select-none ${
-          isPanning ? "cursor-grabbing" : "cursor-grab"
-        }`}
-        style={{ backgroundColor: "#dbeafe" }}
-        onWheel={handleWheel}
-        onPointerDown={handlePointerDown}
+        className="map-viewport block h-full w-full cursor-grab select-none"
+        style={{ backgroundColor: "#dbeafe", touchAction: "none" }}
       >
         <g
-          transform={`translate(${MAP_WIDTH / 2} ${MAP_HEIGHT / 2}) scale(${zoom}) translate(${-MAP_WIDTH / 2 + offset.x} ${-MAP_HEIGHT / 2 + offset.y})`}
+          ref={worldLayerRef}
+          data-world-layer=""
+          className="map-world-layer"
+          shapeRendering="optimizeSpeed"
+          style={{
+            transformOrigin: `${MAP_WIDTH / 2}px ${MAP_HEIGHT / 2}px`,
+            transformBox: "view-box",
+            backfaceVisibility: "hidden",
+          }}
         >
           {countryAreas.map((area) => (
             <AreaPath
@@ -430,13 +367,14 @@ export const WorldMapCanvas = forwardRef<WorldMapCanvasHandle, WorldMapCanvasPro
               strokeWidth={COUNTRY_STROKE_WIDTH}
               vectorEffect="non-scaling-stroke"
               pointerEvents="none"
+              shapeRendering="optimizeSpeed"
             />
           ))}
 
           {showMajorCities && (
             <CityMarkers
               projection={projection}
-              zoom={zoom}
+              zoom={idleZoom}
               locale={locale}
             />
           )}
@@ -446,7 +384,7 @@ export const WorldMapCanvas = forwardRef<WorldMapCanvasHandle, WorldMapCanvasPro
       <div className="absolute right-4 top-4 z-10 flex flex-col gap-1">
         <button
           type="button"
-          onClick={() => setZoom((z) => Math.min(MAX_ZOOM, z * 1.4))}
+          onClick={zoomIn}
           className="h-8 w-8 rounded-lg border border-slate-200 bg-white/95 text-lg font-medium text-slate-700 shadow-sm hover:bg-slate-50"
           aria-label={locale === "en" ? "Zoom in" : "拡大"}
         >
@@ -454,7 +392,7 @@ export const WorldMapCanvas = forwardRef<WorldMapCanvasHandle, WorldMapCanvasPro
         </button>
         <button
           type="button"
-          onClick={() => setZoom((z) => Math.max(MIN_ZOOM, z / 1.4))}
+          onClick={zoomOut}
           className="h-8 w-8 rounded-lg border border-slate-200 bg-white/95 text-lg font-medium text-slate-700 shadow-sm hover:bg-slate-50"
           aria-label={locale === "en" ? "Zoom out" : "縮小"}
         >

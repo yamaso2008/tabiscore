@@ -1,6 +1,6 @@
 "use client";
 
-import { memo } from "react";
+import { memo, useMemo } from "react";
 import { MAJOR_CITIES } from "@/constants/major-cities";
 import type { Locale } from "@/i18n/messages";
 import type { GeoProjection } from "d3-geo";
@@ -17,16 +17,28 @@ export const CityMarkers = memo(function CityMarkers({
   locale,
 }: CityMarkersProps) {
   const inverseScale = 1 / Math.max(zoom, 0.001);
+  const points = useMemo(
+    () =>
+      MAJOR_CITIES.flatMap((city) => {
+        const point = projection([city.lon, city.lat]);
+        if (!point) {
+          return [];
+        }
+
+        return [
+          {
+            city,
+            x: point[0],
+            y: point[1],
+          },
+        ];
+      }),
+    [projection],
+  );
 
   return (
     <g pointerEvents="none" aria-hidden="true">
-      {MAJOR_CITIES.map((city) => {
-        const point = projection([city.lon, city.lat]);
-        if (!point) {
-          return null;
-        }
-
-        const [x, y] = point;
+      {points.map(({ city, x, y }) => {
         const label = locale === "en" ? city.nameEn : city.nameJa;
         const anchor = city.anchor ?? "start";
 

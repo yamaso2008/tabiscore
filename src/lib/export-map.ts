@@ -89,9 +89,12 @@ export async function downloadMapPng(
   clone.setAttribute("height", String(Math.round(mapHeight * PIXEL_RATIO)));
   clone.style.backgroundColor = "#dbeafe";
 
-  const worldGroup = clone.querySelector("g");
-  if (worldGroup) {
+  const worldGroup =
+    clone.querySelector("[data-world-layer]") ?? clone.querySelector("g");
+  if (worldGroup instanceof SVGElement) {
     worldGroup.removeAttribute("transform");
+    worldGroup.style.transform = "none";
+    worldGroup.style.willChange = "auto";
   }
 
   clone.querySelectorAll("[vector-effect]").forEach((node) => {

@@ -16,3 +16,14 @@ body {
 svg {
   display: block;
 }
+
+.map-viewport {
+  touch-action: none;
+  overflow: hidden;
+  contain: paint;
+}
+
+.map-world-layer {
+  transform-box: view-box;
+  backface-visibility: hidden;
+}
